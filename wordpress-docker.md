@@ -17,7 +17,7 @@ RUN apt update && apt install -y nginx
 A ce stade, on peut déjà créer l'image et naviguer dedans grâce à un shell :
 
 ```bash
-root@debian:/home/user/BSI/bsi-nginx# docker build -t bsi/nginx .
+root@debian:bsi-nginx# docker build -t bsi/nginx .
 Sending build context to Docker daemon  7.168kB
 Step 1/2 : FROM debian:stretch-slim
  ---> c08899734c03
@@ -26,21 +26,26 @@ Step 2/2 : RUN apt update && apt install -y nginx
  ---> 5d2c1d83d9cd
 Successfully built 5d2c1d83d9cd
 Successfully tagged bsi/nginx:latest
-root@debian:/home/user/BSI/bsi-nginx# docker run -it bsi/nginx
+
+root@debian:bsi-nginx# docker run -it bsi/nginx
+
 root@2b312cff4e13:/# ls -l /etc/nginx/sites-available/        
 total 4
 -rw-r--r-- 1 root root 2416 Nov  7 05:40 default
+
 root@2b312cff4e13:/# exit
 exit
-root@debian:/home/user/BSI/bsi-nginx# 
+
+root@debian:bsi-nginx# 
 ```
 
 On va extraire le fichier de configuration du site par défaut, et le modifier en dehors de l'image. Pour cela, il suffit de redémarrer un conteneur en lui imposant la commande `cat /etc/nginx/sites-available/default`. Ce conteneur se termine dès que la commande cat a fini de s'exécuter.
 
 ```bash
-root@debian:/home/user/BSI/bsi-nginx# docker run -it bsi/nginx cat /etc/nginx/sites-available/default > server.conf
-root@debian:/home/user/BSI/bsi-nginx# ls -l default 
--rw-r--r-- 1 root root 2507 avril 20 16:43 default
+root@debian:bsi-nginx# docker run -it bsi/nginx cat /etc/nginx/sites-available/default > server.conf
+
+root@debian:bsi-nginx# ls -l server.conf 
+-rw-r--r-- 1 root root 2507 avril 20 16:43 server.conf
 ```
 
 On le modifie de la manière suivante afin de servir :
@@ -102,7 +107,7 @@ CMD nginx -g "daemon off; error_log stderr info;"
 Après un nouveau build, on peut voir que nginx échoue à démarrer car les certificats ne sont pas créés (et le fichier de config nous expliquait bien qu'il utilisait les fichiers créés par le paquet `ssl-cert`) :
 
 ```bash
-root@debian:/home/user/BSI/bsi-nginx# docker run -it -p 8000:80 bsi/nginx 
+root@debian:bsi-nginx# docker run -it -p 8000:80 bsi/nginx 
 nginx: [emerg] BIO_new_file("/etc/ssl/certs/ssl-cert-snakeoil.pem") failed (SSL: error:02001002:system library:fopen:No such file or directory:fopen('/etc/ssl/certs/ssl-cert-snakeoil.pem','r') error:2006D080:BIO routines:BIO_new_file:no such file)
 ```
 
@@ -111,6 +116,7 @@ On adapte le Dockerfile pour ajouter le paquet manquant :
 ```Dockerfile
 FROM debian:stretch-slim
 
+##### ICI
 RUN apt update && apt install -y nginx ssl-cert
 
 RUN rm /etc/nginx/sites-enabled/default
@@ -124,7 +130,7 @@ CMD nginx -g "daemon off; error_log stderr info;"
 Après avoir relancé un conteneur avec la commande précédente, la page d'accueil de nginx s'affiche correctement lorsqu'on ouvre l'URL http://localhost:8000/ depuis l'hôte. L'image créée apparait dans la liste des images locales du système :
 
 ```bash
-root@debian:/home/user/BSI/bsi-nginx# sudo docker image ls
+root@debian:bsi-nginx# sudo docker image ls
 REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
 bsi/nginx           latest              65f34d00cc5c        2 hours ago         129MB
 ```
@@ -141,6 +147,7 @@ RUN rm /etc/nginx/sites-enabled/default
 COPY server.conf /etc/nginx/sites-available/server.conf
 RUN ln -s /etc/nginx/sites-available/server.conf /etc/nginx/sites-enabled/server.conf
 
+##### ICI
 RUN echo '<?php phpinfo(); ?>' > /var/www/html/phpinfo.php
 
 CMD nginx -g "daemon off; error_log stderr info;"
@@ -181,20 +188,20 @@ Enfin, la commande par défaut permet de démarrer le démon PHP-FPM lorsque le 
 Par défaut, différents conteneurs Docker ne peuvent pas se joindre. Nous devons créer un réseau interne pour cela, ici nommé _webserver_ :
 
 ```bash
-root@debian:/home/user/BSI# docker network create webserver
+root@debian# docker network create webserver
 cb2bdbee24279529f31c882b8959cda0c42fae9b0f2b88fa94c3093fba49b11b
 ```
 
 Démarrons le conteneur PHP-FPM, connecté au réseau _webserver_ :
 
 ```bash
-root@debian:/home/user/BSI# docker run --network webserver --name php bsi/php
+root@debian# docker run --network webserver --name php bsi/php
 ```
 
 Ce conteneur porte le nom _php_, ce qui permet aux autre conteneurs accrochés au réseau _webserver_ d'utiliser le serveur DNS interne de Docker pour résoudre son adresse IP. Par exemple ici en utilisant un conteneur debian:stretch :
 
 ```bash
-user@debian:~$ sudo docker run --network webserver debian:stretch ping php
+root@debian# docker run --network webserver debian:stretch ping php
 PING php (172.18.0.2) 56(84) bytes of data.
 64 bytes from php.webserver (172.18.0.2): icmp_seq=1 ttl=64 time=0.153 ms
 64 bytes from php.webserver (172.18.0.2): icmp_seq=2 ttl=64 time=0.254 ms
@@ -207,14 +214,36 @@ PING php (172.18.0.2) 56(84) bytes of data.
 rtt min/avg/max/mdev = 0.153/0.215/0.299/0.056 ms
 ```
 
-Nous devons donc modifier le fichier `bsi-nginx/server.conf` pour modifier la direcctive `fastcgi_pass` ainsi, avant de recréer (docker build) l'image bsi/nginx :
+## Conteneurs nommés
+
+Comme ce conteneur porte un nom prédéfini et non aléatoire comme c'est le cas par défaut, on peut l'arrêter en spécifiant son nom :
+
+```bash
+root@debian# docker stop php
+```
+
+En revanche, on ne peut plus créer un nouveau conteneur avec le même nom :
+
+```bash
+root@debian# docker run --network webserver --name php bsi/php
+docker: Error response from daemon: Conflict. The container name "/php" is already in use by container "be2b6bd02f379d42433135ddb6032e557f21161b5d7b8303ed3e30fd8a90c84f". You have to remove (or rename) that container to be able to reuse that name.
+See 'docker run --help'.
+```
+
+Deux solutions sont alors possibles :
+* Supprimer l'ancien conteneur dont l'exécution est terminée avec ̀`docker rm php`, puis en recréer un nouveau portant le même nom ;
+* Relancer l'ancien conteneur avec `docker start php`
+
+## Création des conteneurs sur le réseau interne
+
+Nous devons désormais modifier le fichier `bsi-nginx/server.conf` pour remplacer _localhost_ par _php_ dans la direcctive `fastcgi_pass`, avant de recréer (`docker build`) l'image bsi/nginx :
 
 > fastcgi_pass php:9000;
 
-Démarrons désormais le conteneur nginx :
+Démarrons le nouveau conteneur nginx :
 
 ```bash
-root@debian:/home/user/BSI/bsi-nginx# docker run --network webserver -p 8000:80 bsi/nginx
+root@debian# docker run --network webserver -p 8000:80 bsi/nginx
 ```
 
 L'URL http://localhost:8000/phpinfo.php affiche désormais le script phpinfo, ce qui permet de vérifier que nginx dialogue correctement avec le conteneur php-fpm.
@@ -240,21 +269,23 @@ Il faut commencer par télécharger le script Wordpress depuis la page https://f
 ## Démarrage de PHP-FPM
 
 ```bash
-root@debian:/home/user/BSI/wordpress# docker run --network webserver --name php -v $(pwd)/wordpress:/var/www/html -it bsi/php 
+root@debian# docker run --network webserver --name php -v $(pwd)/wordpress:/var/www/html -it bsi/php 
 ```
+
+**Attention :** pour monter un répertoire de l'hôte dans le conteneur comme ici, il faut donner le chemin **absolu** du répertoire de l'hôte : on utilise donc `$(pwd)/wordpress`, qui va être transformé par bash en `/home/user/bsi-docker-avance/wordpress` sur ma machine. Si l'on avait écrit `-v wordpress:/var/www/html`, Docker aurait essayé de monter un volume nommé _wordpress_ (et pas le répertoire de l'hôte).
 
 ## Démarrage de MariaDB
 
 Les varaibles d'environnement permettent de créer une base _wordpress_ et un utilisateur au démarrage de la base de données :
 
 ```bash
-root@debian:/home/user/BSI/bsi-nginx# docker run --name mariadb -e MYSQL_ROOT_PASSWORD=my-secret-pw -e MYSQL_DATABASE=wordpress -e MYSQL_USER=wordpress -e MYSQL_PASSWORD=wordpress --network webserver mariadb
+root@debian# docker run --name mariadb -e MYSQL_ROOT_PASSWORD=my-secret-pw -e MYSQL_DATABASE=wordpress -e MYSQL_USER=wordpress -e MYSQL_PASSWORD=wordpress --network webserver mariadb
 ```
 
 ## Démarrage du serveur Nginx
 
 ```bash
-root@debian:/home/user/BSI# docker run --network webserver -p 8000:80 -v $(pwd)/wordpress:/var/www/html bsi/nginx
+root@debian# docker run --network webserver -p 8000:80 -v $(pwd)/wordpress:/var/www/html bsi/nginx
 ```
 
 En ouvrant la page http://localhost:8000 sur l'hôte, on peut désormais configurer Wordpress pour qu'il se connecte sur la base utilisant le hostname _mariadb_, avec l'identifiant _wordpress_, le mot de passe _wordpress_ et la base _wordpress_.
