@@ -231,12 +231,12 @@ See 'docker run --help'.
 ```
 
 Deux solutions sont alors possibles :
-* Supprimer l'ancien conteneur dont l'exécution est terminée avec ̀`docker rm php`, puis en recréer un nouveau portant le même nom ;
+* Supprimer l'ancien conteneur dont l'exécution est terminée avec `docker rm php`, puis en recréer un nouveau portant le même nom ;
 * Relancer l'ancien conteneur avec `docker start php`
 
 ## Création des conteneurs sur le réseau interne
 
-Nous devons désormais modifier le fichier `bsi-nginx/server.conf` pour remplacer _localhost_ par _php_ dans la direcctive `fastcgi_pass`, avant de recréer (`docker build`) l'image bsi/nginx :
+Nous devons désormais modifier le fichier `bsi-nginx/server.conf` pour remplacer _localhost_ par _php_ dans la directive `fastcgi_pass`, avant de recréer (`docker build`) l'image bsi/nginx :
 
 > fastcgi_pass php:9000;
 
@@ -272,7 +272,9 @@ Il faut commencer par télécharger le script Wordpress depuis la page https://f
 root@debian# docker run --network webserver --name php -v $(pwd)/wordpress:/var/www/html -it bsi/php 
 ```
 
-**Attention :** pour monter un répertoire de l'hôte dans le conteneur comme ici, il faut donner le chemin **absolu** du répertoire de l'hôte : on utilise donc `$(pwd)/wordpress`, qui va être transformé par bash en `/home/user/bsi-docker-avance/wordpress` sur ma machine. Si l'on avait écrit `-v wordpress:/var/www/html`, Docker aurait essayé de monter un volume nommé _wordpress_ (et pas le répertoire de l'hôte).
+**Attention**
+
+> Pour monter un répertoire de l'hôte dans le conteneur comme ici, il faut donner le chemin **absolu** du répertoire de l'hôte : on utilise donc `$(pwd)/wordpress`, qui va être transformé par bash en `/home/user/bsi-docker-avance/wordpress` sur ma machine. Si l'on avait écrit `-v wordpress:/var/www/html`, Docker aurait essayé de monter un volume nommé _wordpress_ (et pas le répertoire de l'hôte).
 
 ## Démarrage de MariaDB
 
