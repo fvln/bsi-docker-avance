@@ -20,8 +20,23 @@ services:
     networks:
       - webserver
 
+  nginx:
+    build:
+      context: ./bsi-nginx
+    volumes:
+      - type: bind
+        source: ./wordpress
+        target: /var/www/html
+    networks:
+      - webserver
+      - public
+    ports:
+      - "8000:80"
 
 networks:
   webserver:
     driver: bridge
     internal: true
+  public:
+    driver: bridge
+
