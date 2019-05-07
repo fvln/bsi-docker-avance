@@ -1,4 +1,4 @@
-version: '3'
+version: '3.7'
 services:
   mariadb:
     image: "mariadb"
@@ -9,6 +9,17 @@ services:
       MYSQL_PASSWORD: wordpress
     networks:
       - webserver
+
+  php:
+    build:
+      context: ./bsi-php
+    volumes:
+      - type: bind
+        source: ./wordpress
+        target: /var/www/html
+    networks:
+      - webserver
+
 
 networks:
   webserver:
