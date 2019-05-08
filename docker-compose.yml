@@ -11,6 +11,7 @@ services:
       - type: bind
         source: ./database
         target: /var/lib/mysql
+    restart: on-failure
     networks:
       - webserver
 
@@ -21,6 +22,7 @@ services:
       - type: bind
         source: ./wordpress
         target: /var/www/html
+    restart: on-failure
     networks:
       - webserver
 
@@ -31,6 +33,7 @@ services:
       - type: bind
         source: ./wordpress
         target: /var/www/html
+    restart: on-failure
     networks:
       - webserver
       - public
