@@ -160,5 +160,103 @@ networks:
 On voit que le service nginx est à la fois connecté au réseau interne _webserver_ et au réseau _public_ qui permet d'exposer son port
 80 via le port 8000 de l'hôte.
 
+### Relations de dépendance
 
+On peut désormais spécifier que MariaDB et PHP-FPM doivent démarrer **avant** Nginx, car Wordpress ne pourra pas fonctionner sans php ni base de données :
 
+```yaml
+  nginx:
+    build:
+      context: ./bsi-nginx
+    volumes:
+      - type: bind
+        source: ./wordpress
+        target: /var/www/html
+    networks:
+      - webserver
+      - public
+    ports:
+      - "8000:80"
+    depends_on:    ### ICI
+      - php
+      - mariadb
+```
+
+Docker-compose **ne peut pas savoir** si la base mariaDB a effectivement fini de démarrer ou pas, en revanche il ne créera jamais de
+conteneur nginx sans avoir créé de conteneur mariadb auparavant.
+
+## Démarrage et arrêt des services
+
+Docker-compose propose un certain nombre de commandes pour gérer les services, avec les subtilités suivantes :
+
+**up / down** instancie ou détruit les conteneurs, réseaux et volumes nécessaires à rendre les services demandés
+
+**start / stop** démarre et arrête les conteneurs existants, sans les détruire du disque. On ne peut pas utiliser `stop` ou `start` sans avoir fait un `docker-compose up` avant, car les conteneurs n'ont pas été créés. On peut voir dans cet exemple qu'après un `stop`, les conteneurs ne sont pas détruits :
+
+```bash
+user@debian:~/BSI$ sudo docker-compose up -d
+Creating network "bsi_webserver" with driver "bridge"
+Creating network "bsi_public" with driver "bridge"
+Creating bsi_php_1     ... done
+Creating bsi_mariadb_1 ... done
+Creating bsi_nginx_1   ... done
+
+user@debian:~/BSI$ sudo docker-compose ps
+    Name                   Command               State          Ports        
+-----------------------------------------------------------------------------
+bsi_mariadb_1   docker-entrypoint.sh mysqld      Up                          
+bsi_nginx_1     /bin/sh -c nginx -g "daemo ...   Up      0.0.0.0:8000->80/tcp
+bsi_php_1       /bin/sh -c /usr/sbin/php-f ...   Up    
+
+user@debian:~/BSI$ sudo docker-compose stop
+Stopping bsi_nginx_1   ... done
+Stopping bsi_mariadb_1 ... done
+Stopping bsi_php_1     ... done
+
+user@debian:~/BSI$ sudo docker-compose ps
+    Name                   Command                State     Ports
+-----------------------------------------------------------------
+bsi_mariadb_1   docker-entrypoint.sh mysqld      Exit 0          
+bsi_nginx_1     /bin/sh -c nginx -g "daemo ...   Exit 137        
+bsi_php_1       /bin/sh -c /usr/sbin/php-f ...   Exit 137        
+```
+
+La commande **rm** permet de détruire les conteneurs actuellement arrêtés par la commande `stop`.
+
+Enfin, **pause / unpause** figent tous les processus des différents conteneurs sans pour autant les arrêter.
+
+### Persistance des données
+
+Comme on a pu le voir ci-dessus, après un `docker-compose down`, tous les conteneurs sont détruits et la base de données wordpress créée dans le conteneur MariaDB est perdue. On peut la rendre persistante en montant le répertoire `/var/lib/mysql` du conteneur sur un répertoire de l'hôte (cf. https://hub.docker.com/_/mariadb, section _Where to store data_) :
+
+```yml
+  mariadb:
+    image: "mariadb"
+    environment:
+      MYSQL_ROOT_PASSWORD: my-secret-pw
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    volumes:    ### ICI
+      - type: bind
+        source: ./database
+        target: /var/lib/mysql
+    networks:
+      - webserver
+```
+
+Avec cette configuration, même après `docker-compose down ; docker-compose up`, la base de données de wordpress n'est pas perdue.
+
+### Redémarrage automatique
+
+Il peut arriver qu'un service crashe, et docker-compose peut vérifier que le programme exécuté par le conteneur (entrypoint) est toujours en cours d'exécution. On peut spécifier une autre commande permettant de vérifier si le service répond bien grâce à la directive [healthcheck](https://docs.docker.com/engine/reference/builder/#healthcheck).
+
+Ici, nous allons seulement configurer docker-compose pour qu'il redémarre les processus qui se terminent avec un code de retour différent de zéro, en ajoutant sous chaque service :
+
+```yaml
+restart: on-failure
+```
+
+## Gestion des logs
+
+Docker-compose aggrège tous les logs retournés par les différents services sur leurs sorties standard et d'erreur. On peut les afficher grâce à `docker-compose logs`.
