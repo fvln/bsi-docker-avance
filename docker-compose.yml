@@ -7,6 +7,10 @@ services:
       MYSQL_DATABASE: wordpress
       MYSQL_USER: wordpress
       MYSQL_PASSWORD: wordpress
+    volumes:
+      - type: bind
+        source: ./database
+        target: /var/lib/mysql
     networks:
       - webserver
 
